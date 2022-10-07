@@ -16,7 +16,7 @@ schedules:
 
 stages:
 - stage: 'Build'
-  displayName: 'Build the web application'
+  displayName: 'SureDeploy-WebApp-Build'
   jobs: 
   - job: 'Build'
     displayName: 'Build job'
@@ -76,7 +76,7 @@ stages:
       artifact: drop
 
 - stage: 'Dev'
-  displayName: 'Deploy the web application'
+  displayName: 'DEV-WEBAPP-GTM'
   dependsOn: Build
   condition: |
     and
@@ -105,7 +105,7 @@ stages:
               package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
 
 - stage: 'Test'
-  displayName: 'Deploy to the test environment'
+  displayName: 'UAT-WEBAPP'
   dependsOn: Dev
   #condition: eq(variables['Build.Reason'], 'Schedule')
   jobs:
@@ -129,8 +129,77 @@ stages:
               package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
 
 - stage: 'Staging'
-  displayName: 'Deploy to the staging environment'
+  displayName: 'PROD-WEBAPP-GTM'
   dependsOn: Test
+  jobs:
+  - deployment: Deploy
+    pool:
+      vmImage: 'ubuntu-20.04'
+    environment: staging
+    variables:
+    - group: 'Release'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+          - task: AzureWebApp@1
+            displayName: 'Azure App Service Deploy: website'
+            inputs:
+              azureSubscription: 'tailspin-rg'
+              appName: '$(WebAppNameStaging)'
+              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+
+- stage: 'API-dev'
+  displayName: 'DEV-API-GTM'
+  dependsOn: Build
+  jobs:
+  - deployment: Deploy
+    pool:
+      vmImage: 'ubuntu-20.04'
+    environment: staging
+    variables:
+    - group: 'Release'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+          - task: AzureWebApp@1
+            displayName: 'Azure App Service Deploy: website'
+            inputs:
+              azureSubscription: 'tailspin-rg'
+              appName: '$(WebAppNameStaging)'
+              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+
+- stage: 'API-UAT'
+  displayName: 'UAT-API'
+  dependsOn: API-DEV
+  jobs:
+  - deployment: Deploy
+    pool:
+      vmImage: 'ubuntu-20.04'
+    environment: staging
+    variables:
+    - group: 'Release'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+          - task: AzureWebApp@1
+            displayName: 'Azure App Service Deploy: website'
+            inputs:
+              azureSubscription: 'tailspin-rg'
+              appName: '$(WebAppNameStaging)'
+              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+
+- stage: 'API-PROD'
+  displayName: 'PROD-API-GTM'
+  dependsOn: Build
   jobs:
   - deployment: Deploy
     pool:
